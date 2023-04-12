@@ -11,3 +11,5 @@ for imdata in data["imdata"]:
     for i in imdata:
         for j in imdata[i]:
             print(imdata[i][j]["dn"],"\t", "\t"  , imdata[i][j]["speed"] ,"\t" , imdata[i][j]["mtu"])
+a = json.dumps(data,indent=4)
+print(a)

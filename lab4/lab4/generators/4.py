@@ -6,3 +6,8 @@ b = int(input())
 c = squaresAtoB(a,b)
 for i in c:
     print(i)
+# for i in c:
+#     print(i)
+print(i)
+print(i)
+print(i)

@@ -1,4 +1,4 @@
 import re
 txt=input()
-txt=re.findall("ab*",txt)
-print(txt)
+text=re.findall("^b*",txt)
+print(text)
