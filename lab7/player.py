@@ -59,14 +59,13 @@ while 1:
         if event.type == pygame.QUIT:
             exit()
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_p:
+            if event.key == pygame.K_w:
                 begin = True
                 music = musics[i]
                 i = musics.index(music)
                 pygame.mixer.music.load(f'music\{music}')
                 pygame.mixer.music.play()
                 icon = 0
-                x = 33
                 stop = False
                 
             if event.key == pygame.K_SPACE: 
@@ -77,7 +76,7 @@ while 1:
                     pygame.mixer.music.pause()
                     stop = True
 
-            if event.key == pygame.K_RIGHT and is_sing:
+            if event.key == pygame.K_d and is_sing:
                 x = 33
                 if i == len(musics) - 1:
                     i = 0
@@ -89,7 +88,7 @@ while 1:
                 pygame.mixer.music.play()
                 a = pygame.mixer.Sound(f'music\{musics[i]}')
                
-            if event.key == pygame.K_LEFT and is_sing:
+            if event.key == pygame.K_a and is_sing:
                 x = 33
                 if i == 0:
                     icon = len(musics) - 1
