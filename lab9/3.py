@@ -1,132 +1,230 @@
-# Import the Pygame library
-import pygame
+import os.path
 
-# Define some colors as RGB tuples
-white = (255, 255, 255)
-black = (0, 0, 0)
-green = (34, 139, 34)
-blue = (0, 0, 255)
-red = (255, 0, 0)
-yellow = (255, 255, 0)
+import pygame, sys
+from collections import namedtuple
 
-# Define the main function that will run the game
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+points = []
+
+
+class ColorMode:
+    RED = "red"
+    BLACK = "black"
+    WHITE = "white"
+    GREEN = "green"
+    BLUE = "blue"
+
+    colors = [RED, BLACK, GREEN, BLUE]
+
+
+class Mode:
+    BRUSH = "brush"
+    ERASER = "eraser"
+    RECT = "rectangle"
+    CIRCLE = "oval"
+    SQUARE = "square"
+    RIGHT_TRL = "right_triangle"
+    EQ_TRL = "eq_trl"
+    RHOMB = "rhomb"
+
+    figures = [RECT, CIRCLE, SQUARE, RIGHT_TRL, EQ_TRL, RHOMB, BRUSH, ERASER]
+
+    END = "end"
+    START = "start"
+
+
+class Point:
+    def __init__(self, x, y, radius, color, mode):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.color = color
+        self.mode = mode
+        self.status = Mode.START
+
+
+class Brush:
+    def __init__(self):
+        self.pos = pygame.mouse.get_pos()
+        self.mode = Mode.BRUSH
+        self.icon = "brush"
+        self.image = pygame.transform.scale(pygame.image.load('brush.png'), (100, 100))
+        self.rect = self.image.get_rect()
+        self.rect.bottomleft = self.pos
+        self.width = 15
+        self.color_mode = ColorMode.RED
+        self.points = []
+
+    # render new position of the brush
+    def update(self):
+        self.pos = pygame.mouse.get_pos()
+        self.image = pygame.transform.scale(pygame.image.load(f'{self.icon}.png'), (100, 100))
+        self.rect = self.image.get_rect()
+        self.rect.bottomleft = self.pos
+
+    # adding points into the dataSet
+    def add_points(self):
+        if 50 <= self.pos[1] <= 500:
+            color = self.color_mode if self.mode != Mode.ERASER else ColorMode.WHITE
+            p = Point(x=self.pos[0], y=self.pos[1], radius=self.width, color=color, mode=self.mode)
+            self.points = self.points + [p]
+
+    # drawing line between two points => creating a series of points => one straight line
+    def draw_line_between(self, surf, start, end):
+        dx = start.x - end.x
+        dy = start.y - end.y
+        iterations = max(abs(dx), abs(dy))
+        # 1) check if the points have only brush or eraser mode
+        # 2) check for the new lines
+        if ((start.mode == Mode.BRUSH and end.mode == Mode.BRUSH) or (
+                start.mode == Mode.ERASER and end.mode == Mode.ERASER)) and not (
+                start.status == Mode.END and end.status == Mode.START):
+            for i in range(iterations):
+                progress = 1.0 * i / iterations
+                aprogress = 1 - progress
+                x = int(aprogress * start.x + progress * end.x)
+                y = int(aprogress * start.y + progress * end.y)
+                if start.mode == Mode.BRUSH or start.mode == Mode.ERASER:
+                    pygame.draw.circle(surf, start.color, (x, y), start.radius)
+
+    # constantly updating info on self.points and calling necessary methods
+    def draw_points(self, surf):
+        i = 0
+        while i < len(self.points) - 1:
+            if self.points[i].mode == Mode.BRUSH or self.points[i].mode == Mode.ERASER:
+                self.draw_line_between(surf, self.points[i], self.points[i + 1])
+
+            if self.points[i + 1].mode == Mode.RECT:
+                rect = pygame.Rect(self.points[i + 1].x, self.points[i + 1].y, 200, 130)
+                pygame.draw.rect(surf, self.points[i + 1].color, rect, 1)
+
+            if self.points[i + 1].mode == Mode.CIRCLE:
+                pygame.draw.circle(surf, self.points[i + 1].color, (self.points[i + 1].x, self.points[i + 1].y), 40)
+
+            if self.points[i + 1].mode == Mode.SQUARE:
+                rect = pygame.Rect(self.points[i + 1].x, self.points[i + 1].y, 150, 150)
+                pygame.draw.rect(surf, self.points[i + 1].color, rect, 1)
+
+            if self.points[i + 1].mode == Mode.RIGHT_TRL:
+                pygame.draw.polygon(surf, self.points[i + 1].color, ((self.points[i + 1].x, self.points[i + 1].y),
+                                                                     (self.points[i + 1].x, self.points[i + 1].y - 100),
+                                                                     (self.points[i + 1].x + 100, self.points[i + 1].y)
+                                                                     ))
+
+            if self.points[i + 1].mode == Mode.EQ_TRL:
+                pygame.draw.polygon(surf, self.points[i + 1].color, ((self.points[i + 1].x, self.points[i + 1].y),
+                                                                     (self.points[i + 1].x + 50,
+                                                                      self.points[i + 1].y - 100),
+                                                                     (self.points[i + 1].x + 100, self.points[i + 1].y)
+                                                                     ))
+
+            if self.points[i + 1].mode == Mode.RHOMB:
+                pygame.draw.polygon(surf, self.points[i + 1].color, ((self.points[i + 1].x, self.points[i + 1].y),
+                                                                     (self.points[i + 1].x - 25,
+                                                                      self.points[i + 1].y - 50),
+                                                                     (self.points[i + 1].x, self.points[i + 1].y - 100),
+                                                                     (self.points[i + 1].x + 25,
+                                                                      self.points[i + 1].y - 50)
+                                                                     ))
+            i += 1
+
+    def pick_color_menu(self, surf):
+        x = 0
+        y = 0
+        for i in ColorMode.colors:
+            rect = pygame.draw.rect(surf, i, pygame.Rect(x, y, 40, 40))
+
+            pos = pygame.mouse.get_pos()
+            presses = pygame.mouse.get_pressed()
+            if rect.collidepoint(pos) and presses[0]:
+                self.color_mode = i
+            x += 40
+
+    def pick_figure_menu(self, surf):
+        x = 0
+        y = 510
+        for i in Mode.figures:
+            img = pygame.transform.scale(pygame.image.load(os.path.abspath(f"{i}.png")), (80, 80))
+            rect = surf.blit(img, (x, y))
+
+            pos = pygame.mouse.get_pos()
+            presses = pygame.mouse.get_pressed()
+            if rect.collidepoint(pos) and presses[0]:
+                self.mode = i
+                if i != Mode.ERASER:
+                    self.icon = "brush"
+                    if self.color_mode == ColorMode.WHITE:
+                        self.color_mode = ColorMode.RED
+                else:
+                    self.icon = "eraser"
+                    self.color_mode = ColorMode.WHITE
+            x += 90
+
+    def erase_all(self):
+        self.points = []
+
+
 def main():
-
-    # Initialize the Pygame library
     pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Paint")
+    fps = pygame.time.Clock()
 
-    # Set the screen size to 640x480 pixels
-    screen = pygame.display.set_mode((640, 480))
+    brush = Brush()
 
-    # Create a clock to control the frame rate
-    clock = pygame.time.Clock()
+    pygame.mouse.set_visible(False)
 
-    # Initialize some variables for drawing
-    radius = 15
-    color = white
-    last_pos = None
-
-    # Start the main loop of the game
     while True:
+        fps.tick(60)
 
-        # Handle all events in the Pygame event queue
+        pressed_keys = pygame.key.get_pressed()
+        alt_key = pressed_keys[pygame.K_LALT] and pressed_keys[pygame.K_RALT]
+        ctrl_key = pressed_keys[pygame.K_LCTRL] and pressed_keys[pygame.K_RCTRL]
+        screen.fill((255, 255, 255))
+
+        # checking for events
         for event in pygame.event.get():
-
-            # If the user wants to quit, exit the program
             if event.type == pygame.QUIT:
-                return
-
-            # If the user presses the escape key, exit the program
+                pygame.quit()
+                sys.exit()
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_w and ctrl_key:
+                    return
+                if event.key == pygame.K_F4 and alt_key:
+                    return
                 if event.key == pygame.K_ESCAPE:
                     return
 
-                # If the user presses the r, g, b, y, or space key, change the drawing color
-                if event.key == pygame.K_q:
-                    color = red
-                elif event.key == pygame.K_w:
-                    color = green
-                elif event.key == pygame.K_e:
-                    color = blue
-                elif event.key == pygame.K_r:
-                    color = yellow
-                elif event.key == pygame.K_SPACE:
-                    color = black
+                if event.key == pygame.K_d:
+                    brush.width += 5
+                if event.key == pygame.K_s:
+                    brush.width -= 5
+                if event.key == pygame.K_BACKSPACE:
+                    brush.erase_all()
 
-                # If the user presses the w or c key, draw a rectangle or circle at the mouse position
-                elif event.key == pygame.K_t:
-                    drawRectangle(screen, pygame.mouse.get_pos(), 200, 100, color)
-                elif event.key == pygame.K_y:
-                    drawCircle(screen, pygame.mouse.get_pos(), color)
-                elif event.key == pygame.K_u:
-                    drawSquare(screen, pygame.mouse.get_pos(), 100, 100, color)
-                elif event.key == pygame.K_i:
-                    drawrighttriangle(screen, pygame.mouse.get_pos(), color)
-                elif event.key == pygame.K_o:
-                    draweqtriangle(screen, pygame.mouse.get_pos(), color)
-                elif event.key == pygame.K_p:
-                    drawrhombus(screen, pygame.mouse.get_pos(), color)
+            # placing figure on the screen
+            if event.type == pygame.MOUSEBUTTONDOWN and (brush.mode != Mode.BRUSH and brush.mode != Mode.ERASER):
+                if brush.color_mode == ColorMode.WHITE:
+                    brush.color_mode = ColorMode.RED
+                brush.add_points()
 
-            # If the user clicks the left mouse button, start drawing a line
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                last_pos = pygame.mouse.get_pos()
+            # set the end of the line
+            if event.type == pygame.MOUSEBUTTONUP and len(brush.points) > 1:
+                brush.points[-1].status = Mode.END
 
-            # If the user moves the mouse with the left button down, draw a line between the last position and the current position
-            if event.type == pygame.MOUSEMOTION and event.buttons[0]:
-                if last_pos is not None:
-                    start_pos = last_pos
-                    end_pos = pygame.mouse.get_pos()
-                    drawLineBetween(screen, start_pos, end_pos, radius, color)
-                    last_pos = end_pos
+            if event.type == pygame.MOUSEMOTION and (event.buttons[0] == 1):
+                if brush.mode == Mode.BRUSH or brush.mode == Mode.ERASER:
+                    brush.add_points()
 
-        # Update the screen
+        brush.update()
+
+        brush.draw_points(screen)
+        brush.pick_color_menu(screen)
+        brush.pick_figure_menu(screen)
+        screen.blit(brush.image, brush.rect)
         pygame.display.flip()
 
-        # Limit the frame rate to 60 frames per second
-        clock.tick(60)
 
-# Define a function that draws a line between two points with a given width and color
-def drawLineBetween(screen, start, end, width, color):
-    dx = start[0] - end[0]
-    dy = start[1] - end[1]
-    iterations = max(abs(dx), abs(dy))
-
-    for i in range(iterations):
-        progress = 1.0 * i / iterations
-        aprogress = 1 - progress
-        x = int(aprogress * start[0] + progress * end[0])
-        y = int(aprogress * start[1] + progress * end[1])
-        pygame.draw.circle(screen, color, (x, y), width)
-        
-# Define a function that draws a rectangle or circle at a given position      
-def drawRectangle(screen, mouse_pos, w, h, color):
-    x = mouse_pos[0]
-    y = mouse_pos[1]
-    rect = pygame.Rect(x, y, w, h)
-    pygame.draw.rect(screen, color, rect, 3)
-
-def drawCircle(screen, mouse_pos, color):
-    x = mouse_pos[0]
-    y = mouse_pos[1]
-    pygame.draw.circle(screen, color, (x, y), 100, 3) 
-def drawSquare(screen, mouse_pos, w, h, color):
-    x = mouse_pos[0]
-    y = mouse_pos[1]
-    rect = pygame.Rect(x, y, w, h)
-    pygame.draw.rect(screen, color, rect, 3)
-
-def drawrighttriangle(screen, mouse_pos, color):
-   x = mouse_pos[0]
-   y = mouse_pos[1]
-   pygame.draw.polygon(screen, color, ((x, y), (x, y + 100), (x + 100, y + 100)), 3)
-def draweqtriangle(screen, mouse_pos, color):
-   x = mouse_pos[0]
-   y = mouse_pos[1]
-   pygame.draw.polygon(screen, color, ((x, y), (x - 50, y + 100), (x + 50, y + 100)), 3)
-
-def drawrhombus(screen, mouse_pos, color):
-   x = mouse_pos[0]
-   y = mouse_pos[1]
-   pygame.draw.polygon(screen, color, ((x, y), (x - 50, y + 100), (x, y + 200), (x + 50, y + 100)), 3)
-
-main()
+if __name__ == "__main__":
+    main()
