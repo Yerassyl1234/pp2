@@ -1,40 +1,34 @@
 import pygame
-import random
-import psycopg2
-name = input() # вводим имя перед началом игры
-
-config = psycopg2.connect(
-    host='localhost', 
-    database='postgres',
-    user='postgres',    
-    password='Jjd7UU3m'
-)
-current = config.cursor()
-
-sql = '''
-    SELECT * FROM users WHERE username = %s; 
-'''
-current.execute(sql, [name])
-config.commit()
-data = current.fetchone()
-
-if data == None: # создаем начальные данные если игрока нет в базе данных
-    sql = '''
-        INSERT INTO users VALUES(%s, 0);
-    '''
-    current.execute(sql, [name])
-    config.commit()
-else: # если он уже есть в базе данных, высвечиваем в консоль его последний уровень
-    sql = '''
-    SELECT level FROM users WHERE username = %s;
-    '''
-    current.execute(sql, [name])
-    final = current.fetchone()
-    print(*final)
-    config.commit()
-    paused=False
-    all_sc=0
+import random, psycopg2
 pygame.init()
+
+
+
+hostname = 'localhost'
+database = 'postgres'
+username = 'postgres'
+pwd = 'Jjd7UU3m'
+port_id = 5432
+conn, cur = None, None
+
+con = psycopg2.connect(
+      host = hostname,
+        dbname = database,
+        user = username,
+        password = pwd,
+        port = port_id
+)
+cur = con.cursor()
+
+
+cur.execute(
+   '''CREATE TABLE IF NOT EXISTS usertable(
+   username varchar(100),
+   user_score int,
+   user_level int
+   )'''
+)
+con.commit()
 
 W = 600
 sec = 0
@@ -50,21 +44,49 @@ running = True
 level_font = pygame.font.SysFont("Verdana", 30)
 score_font = pygame.font.SysFont("Verdana", 30)
 
-# Create a timer event
-time_event = pygame.USEREVENT+1
+time_event = pygame.USEREVENT
 pygame.time.set_timer(time_event, 1000)
 
-# Define a class for a gold apple
+
+def insertname(username):
+   cur.execute(
+      "INSERT INTO usertable VALUES('{}', 0, 0)".format(username)
+   )
+   con.commit()
+
+def upd(user):
+   cur.execute(
+      "SELECT * FROM usertable WHERE username = '{}'".format(user)
+   )
+   row = cur.fetchone()
+   cur.execute(
+      "UPDATE usertable SET user_score = '{}', user_level = '{}' WHERE username = '{}'".format 
+      (max(row[1], SCORE), max(row[2], LEVEL), user)
+   )
+   con.commit()
+
+print("Enter your name")
+username = input()
+cur.execute("SELECT count(*) FROM usertable WHERE username='{}'".format(username))
+con.commit()
+if cur.fetchone()[0] == 0:
+   insertname(username)
+   con.commit()
+else:
+      cur.execute("SELECT * FROM usertable WHERE username = '{}'".format(username))
+      data=cur.fetchone()
+      print("User's max score:{}".format(data[1]))
+      print("User's max level:{}".format(data[2]))
+
+
 class GoldApple:
    def __init__(self):
       self.x = int(random.randint(0, W)/ blocksize) * blocksize
       self.y = int(random.randint(0, W)/ blocksize) * blocksize
       self.rect = pygame.Rect(self.x, self.y, blocksize, blocksize)
    def update(self):
-      # Draw a rectangle of yellow color on the screen
       pygame.draw.rect(screen, 'yellow', self.rect)
-
-# Define a class for a normal apple
+# food
 class Apple:
    def __init__(self):
       self.x = int(random.randint(0, W)/ blocksize) * blocksize
@@ -72,10 +94,9 @@ class Apple:
       self.rect = pygame.Rect(self.x, self.y, blocksize, blocksize)
    
    def update(self):
-      # Draw a rectangle of red color on the screen
       pygame.draw.rect(screen, 'red', self.rect)
 
-# Define a class for a snake
+# snake
 class Snake:
    def __init__(self):
       self.x, self.y = blocksize, blocksize
@@ -83,32 +104,20 @@ class Snake:
       self.body = [pygame.Rect(self.x, self.y, blocksize, blocksize)]
       self.head = self.body[0]
       self.dead = False
-
    def update(self):
       global apple
       global LEVEL
       global SCORE
       global fps
-      
-      # Check for collision with snake's own body
+      # collision
       for square in self.body:
             if self.head.x == square.x and self.head.y == square.y:
-               screen.fill('red')
-               game_over = score_font.render("Game over", True, (0, 0, 0))
-               screen.blit(game_over, (W/2 - 80, W/2))
-               pygame.display.update()
-               pygame.time.delay(2000)
-               self.dead = True
-            # Check for collision with the edges of the screen
+                self.dead = True
+                upd(username)
             if self.head.x not in range(0, W) or self.head.y not in range(0, W):
-               screen.fill('red')
-               game_over = score_font.render("Game over", True, (0, 0, 0))
-               screen.blit(game_over, (W/2 - 80, W/2))
-               pygame.display.update()
-               pygame.time.delay(2000)
-               self.dead = True
-      
-      # Restart the game if snake is dead
+                self.dead = True
+                upd(username)
+      # restart
       if self.dead:
             fps = 12
             self.x, self.y = blocksize, blocksize
@@ -120,29 +129,23 @@ class Snake:
             apple = Apple()
             SCORE = 0
             LEVEL = 0
-      
-      # Move the snake
+      # move
       self.body.append(self.head)
       for i in range(len(self.body) - 1):
          self.body[i].x, self.body[i].y = self.body[i + 1].x, self.body[i + 1].y
       self.head.x += self.xdir * blocksize
       self.head.y += self.ydir * blocksize 
       self.body.remove(self.head)
-
-# Initialize variables
 flag = True
-apple = Apple()
-snake = Snake()
-goldapple = GoldApple()
-
-
-# Draw the grid
+# setka
 def drawgrid():
    for x in range(0, W, blocksize):
       for y in range(0, W, blocksize):
          rect = pygame.Rect(x, y, blocksize, blocksize)
          pygame.draw.rect(screen, (255, 255, 255), rect, 1)
-         
+apple = Apple()
+snake = Snake()
+goldapple = GoldApple()
 # game loop
 while running:
    for event in pygame.event.get():
@@ -150,6 +153,8 @@ while running:
          sec += 1
       if event.type == pygame.QUIT:
          running = False
+         cur.close()
+         con.close()
       if event.type == pygame.KEYDOWN:
          if event.key == pygame.K_UP:
             snake.xdir, snake.ydir = 0, -1
@@ -159,14 +164,13 @@ while running:
             snake.xdir, snake.ydir = -1, 0
          elif event.key == pygame.K_RIGHT:
             snake.xdir, snake.ydir = 1, 0
+         if event.key == pygame.K_SPACE:
+            upd(username)
+            running = False
+
    if sec > 5:
-      rand = int(random.randint(0, 2))
-      if rand == 0:
-         goldapple = GoldApple()
-      else:
-         apple = Apple()
+      apple = Apple()
       sec = 0
-     
 
    snake.update()
    screen.fill('black')
@@ -220,11 +224,6 @@ while running:
    clock.tick(fps)
    pygame.display.update()
 
-# после окончания игры обновляем данные игрока в базе данных
-sql = '''
-    UPDATE users SET score = %s, level = %s WHERE username = %s;
-'''
-current.execute(sql, [a, l, name])
-config.commit()
-current.close()
-config.close()
+            
+   
+
